@@ -69,14 +69,17 @@ func runBackfill(cmd *cobra.Command, _ []string) error {
 	toFlag, _ := cmd.Flags().GetString("to")
 	delayFlag, _ := cmd.Flags().GetDuration("delay")
 
-	fromHeight, err := resolveToHeight(ctx, client, fromFlag)
+	fromHeight, err := resolveFromHeight(ctx, client, fromFlag)
 	if err != nil {
 		return fmt.Errorf("resolving --from: %w", err)
 	}
+	log.Info().Str("input", fromFlag).Int64("height", fromHeight).Msg("--from resolved")
+
 	toHeight, err := resolveToHeight(ctx, client, toFlag)
 	if err != nil {
 		return fmt.Errorf("resolving --to: %w", err)
 	}
+	log.Info().Str("input", toFlag).Int64("height", toHeight).Msg("--to resolved")
 
 	// 5. Validate range.
 	if fromHeight > toHeight {

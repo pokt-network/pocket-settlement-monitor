@@ -93,7 +93,7 @@ func (b *Backfiller) RunIfNeeded(ctx context.Context) error {
 	// Resolve --from flag if set (supports both heights and dates).
 	var requestedFrom int64
 	if b.initialFrom != "" {
-		requestedFrom, err = resolveToHeight(ctx, client, b.initialFrom)
+		requestedFrom, err = resolveFromHeight(ctx, client, b.initialFrom)
 		if err != nil {
 			return fmt.Errorf("resolving --from %q: %w", b.initialFrom, err)
 		}
@@ -166,22 +166,50 @@ func (b *Backfiller) RunIfNeeded(ctx context.Context) error {
 		default:
 		}
 
-		// Fetch block results.
+		// Fetch block results with retry (settlement blocks are 1GB+ on mainnet).
 		hp := h
-		results, err := client.BlockResults(ctx, &hp)
-		if err != nil {
-			return fmt.Errorf("fetching block results for height %d: %w", h, err)
-		}
-
-		// Get block timestamp from header.
-		headerResult, err := client.Header(ctx, &hp)
 		var blockTime time.Time
-		if err != nil {
-			b.logger.Warn().Err(err).Int64("height", h).
-				Msg("failed to fetch header for backfill block, using time.Now()")
-			blockTime = time.Now()
-		} else {
+		var blockEvents subscriber.BlockEvents
+		var fetchErr error
+
+		for attempt := 0; attempt <= 10; attempt++ {
+			if attempt > 0 {
+				delay := subscriber.NextDelay(attempt-1, 1*time.Second, 30*time.Second)
+				b.logger.Warn().
+					Int("attempt", attempt).
+					Int64("height", h).
+					Dur("delay", delay).
+					Msg("retrying block fetch")
+
+				select {
+				case <-time.After(delay):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+
+			results, resultsErr := client.BlockResults(ctx, &hp)
+			if resultsErr != nil {
+				fetchErr = resultsErr
+				if attempt == 10 {
+					return fmt.Errorf("failed after 10 retries for height %d: %w", h, fetchErr)
+				}
+				continue
+			}
+
+			headerResult, headerErr := client.Header(ctx, &hp)
+			if headerErr != nil {
+				fetchErr = headerErr
+				if attempt == 10 {
+					return fmt.Errorf("failed after 10 retries for height %d: %w", h, fetchErr)
+				}
+				continue
+			}
+
 			blockTime = headerResult.Header.Time
+			blockEvents = subscriber.DecodeBlockResults(results.FinalizeBlockEvents, h, blockTime, b.logger, stats)
+			fetchErr = nil
+			break
 		}
 
 		// Track first and last block times for summary recalculation range.
@@ -189,9 +217,6 @@ func (b *Backfiller) RunIfNeeded(ctx context.Context) error {
 			firstBlockTime = blockTime
 		}
 		lastBlockTime = blockTime
-
-		// Decode events using exported DecodeBlockResults.
-		blockEvents := subscriber.DecodeBlockResults(results.FinalizeBlockEvents, h, blockTime, b.logger, stats)
 
 		// Process with isLive=false (MNTR-06: INSERT OR IGNORE deduplication).
 		if err := b.processor.ProcessBlock(ctx, h, blockTime, blockEvents.Events, false); err != nil {
@@ -301,29 +326,56 @@ func (b *Backfiller) BackfillRange(fromHeight, toHeight int64) {
 
 	for h := fromHeight; h <= toHeight; h++ {
 		hp := h
-		results, err := client.BlockResults(ctx, &hp)
-		if err != nil {
-			b.logger.Error().Err(err).Int64("height", h).Msg("failed to fetch block during gap recovery")
-			b.metrics.SetBackfillBlocksRemaining(0)
-			return
-		}
-
-		headerResult, err := client.Header(ctx, &hp)
 		var blockTime time.Time
-		if err != nil {
-			b.logger.Warn().Err(err).Int64("height", h).
-				Msg("failed to fetch header during gap recovery, using time.Now()")
-			blockTime = time.Now()
-		} else {
+		var blockEvents subscriber.BlockEvents
+		var fetchErr error
+
+		for attempt := 0; attempt <= 10; attempt++ {
+			if attempt > 0 {
+				delay := subscriber.NextDelay(attempt-1, 1*time.Second, 30*time.Second)
+				b.logger.Warn().
+					Int("attempt", attempt).
+					Int64("height", h).
+					Dur("delay", delay).
+					Msg("retrying block fetch during gap recovery")
+
+				time.Sleep(delay)
+			}
+
+			results, resultsErr := client.BlockResults(ctx, &hp)
+			if resultsErr != nil {
+				fetchErr = resultsErr
+				if attempt == 10 {
+					b.logger.Error().Err(fetchErr).Int64("height", h).
+						Msg("failed after 10 retries during gap recovery")
+					b.metrics.SetBackfillBlocksRemaining(0)
+					return
+				}
+				continue
+			}
+
+			headerResult, headerErr := client.Header(ctx, &hp)
+			if headerErr != nil {
+				fetchErr = headerErr
+				if attempt == 10 {
+					b.logger.Error().Err(fetchErr).Int64("height", h).
+						Msg("failed after 10 retries during gap recovery")
+					b.metrics.SetBackfillBlocksRemaining(0)
+					return
+				}
+				continue
+			}
+
 			blockTime = headerResult.Header.Time
+			blockEvents = subscriber.DecodeBlockResults(results.FinalizeBlockEvents, h, blockTime, b.logger, stats)
+			fetchErr = nil
+			break
 		}
 
 		if h == fromHeight {
 			firstBlockTime = blockTime
 		}
 		lastBlockTime = blockTime
-
-		blockEvents := subscriber.DecodeBlockResults(results.FinalizeBlockEvents, h, blockTime, b.logger, stats)
 
 		// Determine if this block should be treated as live. If the block
 		// is recent enough (within liveCatchupThreshold), it was only missed

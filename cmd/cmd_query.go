@@ -63,7 +63,7 @@ func parseQueryFilters() (fromTime time.Time, toTime time.Time, fromHeight int64
 	if qFrom != "" {
 		if h, parseErr := strconv.ParseInt(qFrom, 10, 64); parseErr == nil {
 			fromHeight = h
-		} else if t, parseErr := parseFlexibleTime(qFrom); parseErr == nil {
+		} else if t, _, parseErr := parseFlexibleTime(qFrom); parseErr == nil {
 			fromTime = t
 		} else {
 			err = fmt.Errorf("invalid --from value %q: must be a block height (integer) or ISO 8601 date", qFrom)
@@ -74,7 +74,7 @@ func parseQueryFilters() (fromTime time.Time, toTime time.Time, fromHeight int64
 	if qTo != "" {
 		if h, parseErr := strconv.ParseInt(qTo, 10, 64); parseErr == nil {
 			toHeight = h
-		} else if t, parseErr := parseFlexibleTime(qTo); parseErr == nil {
+		} else if t, _, parseErr := parseFlexibleTime(qTo); parseErr == nil {
 			toTime = t
 		} else {
 			err = fmt.Errorf("invalid --to value %q: must be a block height (integer) or ISO 8601 date", qTo)
