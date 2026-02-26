@@ -1,0 +1,12 @@
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+COPY mock-webhook.go .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /mock-webhook mock-webhook.go
+
+FROM alpine:3.21
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=builder /mock-webhook /usr/local/bin/mock-webhook
+USER app
+ENTRYPOINT ["mock-webhook"]
+CMD ["-port", "8888"]

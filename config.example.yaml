@@ -1,0 +1,62 @@
+cometbft:
+  rpc_url: "tcp://localhost:26657"
+  reconnect_base_delay: "1s"
+  reconnect_max_delay: "30s"
+  # How long to wait for a new block before assuming the WebSocket is dead.
+  # Must exceed the longest expected block time. Mainnet settlement blocks can
+  # take 5-10+ minutes due to EndBlocker processing; the chain has seen blocks
+  # exceeding 11 minutes during congestion. Only increase this value.
+  heartbeat_timeout: "15m"
+
+# Leave BOTH empty for "monitor all" mode (explorer/poktscan/foundation use case)
+suppliers:
+  keys_file: ""            # Path to supplier-keys.yaml (hex private keys → derive addresses)
+  addresses: []            # Plain list of pokt1... addresses
+
+database:
+  path: "./settlement-monitor.db"
+  wal_mode: true
+  # Data retention — rows older than this are purged hourly.
+  # Summaries (hourly/daily) are kept 3x/6x longer automatically.
+  # 0 = keep forever.
+  retention: "360h"  # 15 days
+
+metrics:
+  enabled: true
+  addr: ":9090"
+  labels:
+    include_supplier: true     # Add supplier label to metrics
+    include_service: true      # Add service label to metrics
+    include_application: false # Add application label to metrics (high cardinality)
+
+backfill:
+  delay: "100ms"           # Delay between block fetches during gap recovery
+  progress_interval: 100   # Log progress every N blocks during backfill
+  # When CometBFT skips a settlement block via WebSocket (too heavy to deliver),
+  # gap detection catches it. If the block is younger than this threshold, treat
+  # it as "live" — Prometheus counters increment and Discord notifications fire.
+  # Set to "0" to disable (all gap blocks treated as historical backfill).
+  live_catchup_threshold: "20m"
+
+notifications:
+  webhook_url: ""                # Default / settlement webhook
+  critical_webhook_url: ""       # Slashes (optional, falls back to webhook_url)
+  ops_webhook_url: ""            # Ops alerts (optional, falls back to webhook_url)
+
+  # Settlement toggles
+  notify_settlements: false
+  notify_expirations: true
+  notify_slashes: true
+  notify_discards: true
+  notify_overservice: true
+  hourly_summary: true           # Post hourly aggregation to Discord
+  daily_summary: true            # Post daily aggregation to Discord
+
+  # Ops toggles
+  notify_connection: true        # Started, connected, disconnected
+  notify_gap: true               # Gap detected, backfill started/completed
+  notify_health: true            # Node unreachable, channel overflow
+
+logging:
+  level: "info"
+  format: "json"           # "json" or "console"

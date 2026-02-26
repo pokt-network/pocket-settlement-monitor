@@ -1,0 +1,82 @@
+# tilt_config.example.yaml — Copy to tilt_config.yaml and customize.
+#
+# Usage:
+#   cp tilt_config.example.yaml tilt_config.yaml
+#   tilt up
+
+# Monitor configuration — maps directly to config.yaml fields.
+# The Tiltfile generates .tilt/.generated-config.yaml from this section
+# with overrides for Docker networking (database path, metrics addr, etc).
+monitor:
+  cometbft:
+    rpc_url: "https://sauron-rpc.beta.infra.pocket.network"
+    reconnect_base_delay: "1s"
+    reconnect_max_delay: "30s"
+    heartbeat_timeout: "15m"  # Max wait for a new block before treating WS as dead
+
+  # Leave BOTH empty for "monitor all" mode
+  suppliers:
+    keys_file: ""
+    addresses: []
+
+  database:
+    path: "./settlement-monitor.db"  # Filename preserved in container volume (/home/psm/)
+    wal_mode: true
+    retention: "360h"
+
+  metrics:
+    enabled: true
+    addr: ":9090"  # Overridden to 0.0.0.0:PORT in container
+    labels:
+      include_supplier: true
+      include_service: true
+      include_application: false
+
+  backfill:
+    delay: "100ms"
+    progress_interval: 100
+    live_catchup_threshold: "20m"  # Gap blocks < 20m old treated as live
+
+  notifications:
+    # Points to the Tilt mock-webhook service by default.
+    # Replace with real Discord webhook URLs for production testing.
+    webhook_url: "http://mock-webhook:8888/webhook"
+    critical_webhook_url: "http://mock-webhook:8888/webhook-critical"
+    ops_webhook_url: "http://mock-webhook:8888/webhook-ops"
+    notify_settlements: true
+    notify_expirations: true
+    notify_slashes: true
+    notify_discards: true
+    notify_overservice: true
+    hourly_summary: true
+    daily_summary: true
+    notify_connection: true
+    notify_gap: true
+    notify_health: true
+
+  logging:
+    level: "info"
+    format: "json"  # Overridden to json when loki is enabled
+
+# Port assignments for all services.
+ports:
+  monitor_metrics: 9090
+  prometheus: 9091
+  grafana: 3000
+  loki: 3100
+  mock_webhook: 8888
+
+# Observability stack toggles.
+observability:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+  loki:
+    enabled: true
+
+# Mock Discord webhook for local testing.
+# Enabled by default — webhook URLs above point to this service.
+# Disable if using real Discord webhook URLs.
+mock_webhook:
+  enabled: true

@@ -1,0 +1,36 @@
+# Binaries
+bin/
+dist/
+*.exe
+
+# Database files
+*.db
+*.db-wal
+*.db-shm
+
+# Test output
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Local configs (keep example and environment configs tracked)
+config.*.yaml
+!config.example.yaml
+!config.mainnet.yaml
+!config.beta.yaml
+!config.localnet.yaml
+
+# GSD planning artifacts
+.planning/
+
+# Tilt
+.tilt-tmp/
+tilt_config.yaml
+.tilt/

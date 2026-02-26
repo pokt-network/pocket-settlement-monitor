@@ -1,0 +1,32 @@
+cometbft:
+  rpc_url: "tcp://localhost:26657"
+  reconnect_base_delay: "1s"
+  reconnect_max_delay: "10s"
+  heartbeat_timeout: "2m"   # Localnet blocks are fast; 2m detects hangs quickly
+
+# Monitor-all mode — track everything on localnet
+suppliers:
+  keys_file: ""
+  addresses: []
+
+database:
+  path: "./settlement-monitor-localnet.db"
+  wal_mode: true
+  retention: "0"  # Keep forever on localnet
+
+metrics:
+  enabled: true
+  addr: ":9093"  # 9090=beta, 9091=mainnet, 9093=localnet
+  labels:
+    include_supplier: true
+    include_service: true
+    include_application: true  # Safe on localnet (low cardinality)
+
+backfill:
+  delay: "50ms"            # Fast — local node
+  progress_interval: 50
+  live_catchup_threshold: "5m"   # Localnet blocks are fast
+
+logging:
+  level: "debug"
+  format: "console"

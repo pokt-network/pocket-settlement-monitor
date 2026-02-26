@@ -1,0 +1,47 @@
+cometbft:
+  rpc_url: "https://sauron-rpc.infra.pocket.network"
+  reconnect_base_delay: "2s"
+  reconnect_max_delay: "60s"
+  heartbeat_timeout: "15m"  # Mainnet settlement blocks can take 5-10+ min
+
+# Monitor-all mode — explorer mode for mainnet testing
+suppliers:
+  keys_file: ""
+  addresses: []
+
+database:
+  path: "./settlement-monitor-mainnet.db"
+  wal_mode: true
+  retention: "720h"  # 30 days
+
+metrics:
+  enabled: true
+  addr: ":9091"  # Different port from beta to avoid conflicts
+  labels:
+    include_supplier: true
+    include_service: true
+    include_application: false
+
+backfill:
+  delay: "200ms"          # Slightly slower for mainnet (larger responses)
+  progress_interval: 10   # Log every 10 blocks (mainnet blocks are heavy)
+  live_catchup_threshold: "20m"  # Settlement blocks missed by WS but < 20m old → treat as live
+
+notifications:
+  webhook_url: "http://localhost:8888/webhook"
+  critical_webhook_url: "http://localhost:8888/webhook-critical"
+  ops_webhook_url: "http://localhost:8888/webhook-ops"
+  notify_settlements: false
+  notify_expirations: true
+  notify_slashes: true
+  notify_discards: true
+  notify_overservice: true
+  hourly_summary: true
+  daily_summary: true
+  notify_connection: true
+  notify_gap: true
+  notify_health: true
+
+logging:
+  level: "info"
+  format: "console"

@@ -1,0 +1,83 @@
+groups:
+  - name: pocket-settlement-monitor
+    rules:
+      # Monitor disconnected for more than 5 minutes
+      - alert: PSMWebSocketDisconnected
+        expr: psm_websocket_connected == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Settlement monitor WebSocket disconnected"
+          description: "psm has been disconnected from CometBFT for more than 5 minutes."
+
+      # Block processing lag exceeds 10 blocks
+      - alert: PSMProcessingLag
+        expr: (psm_current_block_height - psm_last_processed_height) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Settlement monitor is falling behind"
+          description: "Processing lag is {{ $value }} blocks."
+
+      # Backfill running for more than 30 minutes
+      - alert: PSMBackfillStalled
+        expr: psm_backfill_blocks_remaining > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backfill has been running for over 30 minutes"
+          description: "{{ $value }} blocks remaining."
+
+      # Supplier slashed
+      - alert: PSMSupplierSlashed
+        expr: increase(psm_suppliers_slashed_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Supplier slashed"
+          description: "Supplier {{ $labels.supplier }} was slashed on service {{ $labels.service }}."
+
+      # High expiration rate (more than 5 in an hour)
+      - alert: PSMHighExpirationRate
+        expr: increase(psm_claims_expired_total[1h]) > 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "High claim expiration rate"
+          description: "{{ $value }} claims expired in the last hour."
+
+      # Discord notifications failing
+      - alert: PSMNotificationErrors
+        expr: rate(psm_discord_notification_errors_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Discord notification errors"
+          description: "Webhook notifications have been failing for 15+ minutes."
+
+      # No blocks processed (monitor may be stuck)
+      - alert: PSMNoBlocksProcessed
+        expr: increase(psm_blocks_processed_total[30m]) == 0 and psm_websocket_connected == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No settlement blocks processed"
+          description: >
+            Connected but no settlement blocks processed in 30 minutes.
+            On mainnet, settlements occur every ~90 minutes (60 blocks x ~1.5 min),
+            so this may be normal. Investigate if this persists beyond 2 hours.
+
+      # SQLite errors
+      - alert: PSMSQLiteErrors
+        expr: rate(psm_sqlite_operations_total{status="error"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SQLite operation errors"
+          description: "Database errors detected on operation {{ $labels.operation }}."

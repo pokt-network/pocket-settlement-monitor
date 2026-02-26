@@ -1,0 +1,47 @@
+cometbft:
+  rpc_url: "https://sauron-rpc.beta.infra.pocket.network"
+  reconnect_base_delay: "1s"
+  reconnect_max_delay: "30s"
+  heartbeat_timeout: "5m"   # Beta blocks are ~30s; 5m is plenty
+
+# Monitor-all mode (no supplier filter) — explorer mode for beta testing
+suppliers:
+  keys_file: ""
+  addresses: []
+
+database:
+  path: "./settlement-monitor-beta.db"
+  wal_mode: true
+  retention: "720h"  # 30 days
+
+metrics:
+  enabled: true
+  addr: ":9090"
+  labels:
+    include_supplier: true
+    include_service: true
+    include_application: false
+
+backfill:
+  delay: "100ms"
+  progress_interval: 50
+  live_catchup_threshold: "10m"  # Beta blocks are fast; 10m is enough
+
+notifications:
+  webhook_url: "http://localhost:8888/webhook"
+  critical_webhook_url: "http://localhost:8888/webhook-critical"
+  ops_webhook_url: "http://localhost:8888/webhook-ops"
+  notify_settlements: true
+  notify_expirations: true
+  notify_slashes: true
+  notify_discards: true
+  notify_overservice: true
+  hourly_summary: true
+  daily_summary: true
+  notify_connection: true
+  notify_gap: true
+  notify_health: true
+
+logging:
+  level: "debug"
+  format: "console"
